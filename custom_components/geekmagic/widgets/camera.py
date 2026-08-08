@@ -56,6 +56,16 @@ class CameraWidget(Widget):
                 "options": ["cover", "contain"],
                 "default": "cover",
             },
+            {
+                "key": "crop",
+                "type": "select",
+                "label": "Crop",
+                # Stacked dual-lens feeds (two 16:9 panes, one over the other)
+                # land their seam mid-cell under ``cover``. ``top``/``bottom``
+                # keep just one pane so the seam leaves the frame entirely.
+                "options": ["none", "top", "bottom"],
+                "default": "none",
+            },
             {"key": "show_label", "type": "boolean", "label": "Show Label", "default": False},
         ],
     }
@@ -67,6 +77,9 @@ class CameraWidget(Widget):
         # Default matches the SCHEMA: a fresh camera fills its cell
         # instead of letterboxing non-square cells with black bands.
         self.fit = config.options.get("fit", "cover")
+        # ``top``/``bottom`` keep only that vertical half of the source
+        # before the fit — isolates one pane of a stacked dual-lens feed.
+        self.crop = config.options.get("crop", "none")
 
     def render_html(self, ctx: CellContext, state: WidgetState) -> str:
         """Render the camera widget."""
@@ -74,6 +87,7 @@ class CameraWidget(Widget):
             return self._render_placeholder(ctx, state)
 
         image = state.image.convert("RGB") if state.image.mode != "RGB" else state.image
+        image = self._crop_pane(image)
         uri = image_data_uri(image)
         fit = self.fit if self.fit in ("cover", "contain") else "contain"
 
@@ -90,6 +104,21 @@ class CameraWidget(Widget):
             f"{chip}"
             "</div>"
         )
+
+    def _crop_pane(self, image: Any) -> Any:
+        """Keep only the top or bottom half of the source when configured.
+
+        Stacked dual-lens cameras deliver two 16:9 panes one above the
+        other. Left whole, ``cover`` drops their seam across the middle of
+        the square cell; cropping to a single pane moves the seam out of
+        frame so the kept camera fills the display.
+        """
+        if self.crop not in ("top", "bottom"):
+            return image
+        width, height = image.size
+        mid = height // 2
+        box = (0, 0, width, mid) if self.crop == "top" else (0, mid, width, height)
+        return image.crop(box)
 
     def _render_placeholder(self, ctx: CellContext, state: WidgetState) -> str:
         """Offline / no-snapshot state — a quiet caption, not an alarm.

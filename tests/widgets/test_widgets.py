@@ -2092,6 +2092,28 @@ class TestCameraWidget:
         fragment = widget.render_html(ctx, make_state(entity, image=snapshot))
         assert "Front Yard" not in fragment
 
+    def test_crop_default_keeps_whole_image(self):
+        widget = self._widget()
+        snapshot = Image.new("RGB", (40, 60))
+        assert widget._crop_pane(snapshot).size == (40, 60)
+
+    def test_crop_top_keeps_upper_half(self):
+        # Top pane is red, bottom pane blue — the crop must keep only red.
+        widget = self._widget(crop="top")
+        snapshot = Image.new("RGB", (40, 60), (0, 0, 255))
+        snapshot.paste((255, 0, 0), (0, 0, 40, 30))
+        cropped = widget._crop_pane(snapshot)
+        assert cropped.size == (40, 30)
+        assert cropped.getpixel((20, 15)) == (255, 0, 0)
+
+    def test_crop_bottom_keeps_lower_half(self):
+        widget = self._widget(crop="bottom")
+        snapshot = Image.new("RGB", (40, 60), (255, 0, 0))
+        snapshot.paste((0, 0, 255), (0, 30, 40, 60))
+        cropped = widget._crop_pane(snapshot)
+        assert cropped.size == (40, 30)
+        assert cropped.getpixel((20, 15)) == (0, 0, 255)
+
 
 # ============================================================================
 # AttributeListWidget
